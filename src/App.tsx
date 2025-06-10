@@ -12,6 +12,8 @@ function App() {
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [currentUserSpeech, setCurrentUserSpeech] = useState('');
+  const [currentBotSpeech, setCurrentBotSpeech] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const voiceModeRef = useRef(false);
@@ -48,6 +50,15 @@ function App() {
     voiceModeRef.current = isVoiceMode;
   }, [isVoiceMode]);
 
+  // Update current user speech display
+  useEffect(() => {
+    if (isVoiceMode && transcript) {
+      setCurrentUserSpeech(transcript);
+    } else if (!isVoiceMode) {
+      setCurrentUserSpeech('');
+    }
+  }, [transcript, isVoiceMode]);
+
   // Manual microphone: write transcript to input when listening stops
   useEffect(() => {
     if (transcript && !isVoiceMode && !isListening) {
@@ -80,6 +91,7 @@ function App() {
 
     // Reset transcript after using it
     resetTranscript();
+    setCurrentUserSpeech('');
 
     // Add user message
     const userMessage: ChatMessage = {
@@ -112,8 +124,10 @@ function App() {
       // Speak response and restart listening when done
       if (data.textResponse && voiceModeRef.current) {
         console.log('🔊 Speaking response and then restarting listening');
+        setCurrentBotSpeech(data.textResponse);
         speak(data.textResponse, () => {
           // Reset processing flag and restart listening after speech ends
+          setCurrentBotSpeech('');
           isProcessingVoiceRef.current = false;
           if (voiceModeRef.current) {
             console.log('🔄 Restarting listening after speech');
@@ -198,6 +212,8 @@ function App() {
     setIsVoiceMode(false);
     voiceModeRef.current = false;
     isProcessingVoiceRef.current = false;
+    setCurrentUserSpeech('');
+    setCurrentBotSpeech('');
     stopSpeaking();
     stopListening();
     resetTranscript();
@@ -282,6 +298,8 @@ function App() {
       setIsVoiceMode(false);
       voiceModeRef.current = false;
       isProcessingVoiceRef.current = false;
+      setCurrentUserSpeech('');
+      setCurrentBotSpeech('');
       stopListening();
       stopSpeaking();
     } else {
@@ -290,6 +308,8 @@ function App() {
       setIsVoiceMode(true);
       voiceModeRef.current = true;
       isProcessingVoiceRef.current = false;
+      setCurrentUserSpeech('');
+      setCurrentBotSpeech('');
       resetTranscript();
       startListening(handleVoiceConversation);
     }
@@ -330,7 +350,7 @@ function App() {
     return (
       <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
         {/* Header */}
-        <div className="w-full relative h-[10vh] min-h-[80px] max-h-[100px]">
+        <div className="w-full relative h-[8vh] min-h-[60px] max-h-[80px] flex-shrink-0">
           <img
             src="/header.jpg"
             className="w-full h-full object-cover"
@@ -342,91 +362,107 @@ function App() {
               background: 'linear-gradient(to bottom, rgba(0, 51, 102, 0.85), rgba(0, 102, 204, 0.75))'
             }}
           >
-            <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-white drop-shadow-lg tracking-wider">
+            <h1 className="text-sm sm:text-lg md:text-xl lg:text-2xl font-bold text-white drop-shadow-lg tracking-wider">
               TURGUT ÖZAL KAİHL
             </h1>
           </div>
         </div>
 
         {/* Voice Mode Content */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
+        <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
           {/* Close Button */}
-          <div className="absolute top-24 right-4 sm:right-8">
+          <div className="absolute top-16 sm:top-20 right-2 sm:right-4 z-10">
             <button
               onClick={handleVoiceToggle}
-              className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full shadow-lg transition-colors"
+              className="bg-red-500 hover:bg-red-600 text-white p-2 sm:p-3 rounded-full shadow-lg transition-colors"
               title="Sesli modu kapat"
             >
-              <X className="w-6 h-6" />
+              <X className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
           </div>
 
           {/* Visual Feedback - Only show one state at a time */}
-          <div className="text-center flex flex-col items-center">
+          <div className="text-center flex flex-col items-center flex-1 justify-center max-w-full">
             {currentState === 'listening' && (
-              <div className="mb-6 flex flex-col items-center">
+              <div className="flex flex-col items-center w-full">
                 <img 
                   src="/dinle.gif" 
                   alt="Dinleniyor" 
-                  className="w-48 h-48 sm:w-60 sm:h-60 md:w-72 md:h-72 lg:w-84 lg:h-84 object-cover rounded-full shadow-2xl"
+                  className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 object-cover rounded-full shadow-2xl mb-4"
                 />
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-700 mt-6">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-700 mb-2">
                   🎤 Dinleniyor...
                 </p>
-                <p className="text-sm sm:text-base text-green-600 mt-2">
+                <p className="text-xs sm:text-sm text-green-600 mb-4">
                   Konuşmaya başlayın
                 </p>
-                {transcript && (
-                  <div className="mt-4 p-4 bg-green-100 rounded-lg max-w-md mx-auto">
-                    <p className="text-green-800 font-medium">"{transcript}"</p>
+                {currentUserSpeech && (
+                  <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto p-3 sm:p-4 bg-green-100 rounded-lg border-2 border-green-300">
+                    <p className="text-green-800 font-medium text-sm sm:text-base break-words">
+                      "{currentUserSpeech}"
+                    </p>
                   </div>
                 )}
               </div>
             )}
             
             {currentState === 'speaking' && (
-              <div className="mb-6 flex flex-col items-center">
+              <div className="flex flex-col items-center w-full">
                 <img 
                   src="/konus.gif" 
                   alt="Konuşuyor" 
-                  className="w-48 h-48 sm:w-60 sm:h-60 md:w-72 md:h-72 lg:w-84 lg:h-84 object-cover rounded-full shadow-2xl"
+                  className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 object-cover rounded-full shadow-2xl mb-4"
                 />
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-700 mt-6">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-700 mb-2">
                   🔊 Konuşuyor...
                 </p>
-                <p className="text-sm sm:text-base text-blue-600 mt-2">
+                <p className="text-xs sm:text-sm text-blue-600 mb-4">
                   Yanıt veriliyor
                 </p>
+                {currentBotSpeech && (
+                  <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto p-3 sm:p-4 bg-blue-100 rounded-lg border-2 border-blue-300">
+                    <p className="text-blue-800 font-medium text-sm sm:text-base break-words">
+                      {currentBotSpeech}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
             {currentState === 'loading' && (
-              <div className="mb-6 flex flex-col items-center">
-                <div className="w-48 h-48 sm:w-60 sm:h-60 md:w-72 md:h-72 lg:w-84 lg:h-84 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-2xl">
+              <div className="flex flex-col items-center w-full">
+                <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-2xl mb-4">
                   <div className="flex space-x-2">
-                    <div className="w-4 h-4 sm:w-6 sm:h-6 bg-blue-500 rounded-full animate-bounce"></div>
-                    <div className="w-4 h-4 sm:w-6 sm:h-6 bg-blue-500 rounded-full animate-bounce delay-150"></div>
-                    <div className="w-4 h-4 sm:w-6 sm:h-6 bg-blue-500 rounded-full animate-bounce delay-300"></div>
+                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full animate-bounce"></div>
+                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full animate-bounce delay-150"></div>
+                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full animate-bounce delay-300"></div>
                   </div>
                 </div>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-600 mt-6">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600 mb-2">
                   🤔 Düşünüyor...
                 </p>
-                <p className="text-sm sm:text-base text-blue-500 mt-2">
+                <p className="text-xs sm:text-sm text-blue-500 mb-4">
                   Yanıt hazırlanıyor
                 </p>
+                {currentUserSpeech && (
+                  <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto p-3 sm:p-4 bg-gray-100 rounded-lg border-2 border-gray-300">
+                    <p className="text-gray-700 font-medium text-sm sm:text-base break-words">
+                      "Siz: {currentUserSpeech}"
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             
             {currentState === 'idle' && (
-              <div className="mb-6 flex flex-col items-center">
-                <div className="w-48 h-48 sm:w-60 sm:h-60 md:w-72 md:h-72 lg:w-84 lg:h-84 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center shadow-2xl">
-                  <Mic className="w-18 h-18 sm:w-24 sm:h-24 lg:w-30 lg:h-30 text-gray-400" />
+              <div className="flex flex-col items-center w-full">
+                <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center shadow-2xl mb-4">
+                  <Mic className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 text-gray-400" />
                 </div>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-600 mt-6">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-600 mb-2">
                   ⏳ Hazır...
                 </p>
-                <p className="text-sm sm:text-base text-gray-500 mt-2">
+                <p className="text-xs sm:text-sm text-gray-500">
                   Konuşmaya başlamak için bekliyor
                 </p>
               </div>
@@ -434,12 +470,12 @@ function App() {
           </div>
 
           {/* Instructions */}
-          <div className="mt-8 text-center max-w-2xl px-4">
-            <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-lg">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
+          <div className="w-full max-w-2xl px-2 sm:px-4 mt-4 flex-shrink-0">
+            <div className="bg-white/80 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-lg">
+              <h3 className="text-sm sm:text-lg font-bold text-gray-800 mb-2">
                 Sesli Konuşma Modu Aktif
               </h3>
-              <p className="text-gray-600 text-sm sm:text-base leading-relaxed">
+              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">
                 Konuşun, yanıt alın ve otomatik olarak tekrar dinlemeye başlar. 
                 Çıkmak için sağ üstteki ❌ butonuna basın.
               </p>
@@ -589,7 +625,7 @@ function App() {
                       )}
                     </div>
                   )}
-                  <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                  <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
                   {msg.attachment && (
                     <div className="mt-2">
                       <img 
