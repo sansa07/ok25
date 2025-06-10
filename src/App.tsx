@@ -15,6 +15,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const voiceModeRef = useRef(false);
+  const isProcessingVoiceRef = useRef(false);
 
   // Speech hooks
   const {
@@ -56,17 +57,26 @@ function App() {
     }
   }, [transcript, isVoiceMode, isListening, resetTranscript]);
 
-  // Voice conversation handler
+  // Voice conversation handler with duplicate prevention
   const handleVoiceConversation = async (spokenText: string) => {
     console.log('🎙️ Voice conversation triggered with:', spokenText);
     
-    if (!spokenText.trim()) {
-      console.log('⚠️ Empty speech, restarting listening');
+    // Prevent duplicate processing
+    if (isProcessingVoiceRef.current) {
+      console.log('⚠️ Already processing voice input, ignoring duplicate');
+      return;
+    }
+    
+    if (!spokenText.trim() || spokenText.trim().length < 2) {
+      console.log('⚠️ Empty or too short speech, restarting listening');
       if (voiceModeRef.current) {
         restartListening(handleVoiceConversation);
       }
       return;
     }
+
+    // Set processing flag
+    isProcessingVoiceRef.current = true;
 
     // Reset transcript after using it
     resetTranscript();
@@ -103,15 +113,27 @@ function App() {
       if (data.textResponse && voiceModeRef.current) {
         console.log('🔊 Speaking response and then restarting listening');
         speak(data.textResponse, () => {
-          // Restart listening after speech ends
+          // Reset processing flag and restart listening after speech ends
+          isProcessingVoiceRef.current = false;
           if (voiceModeRef.current) {
             console.log('🔄 Restarting listening after speech');
-            restartListening(handleVoiceConversation);
+            setTimeout(() => {
+              if (voiceModeRef.current && !isProcessingVoiceRef.current) {
+                restartListening(handleVoiceConversation);
+              }
+            }, 500);
           }
         });
       } else if (voiceModeRef.current) {
-        // No response, restart listening directly
-        restartListening(handleVoiceConversation);
+        // No response, reset processing flag and restart listening directly
+        isProcessingVoiceRef.current = false;
+        setTimeout(() => {
+          if (voiceModeRef.current && !isProcessingVoiceRef.current) {
+            restartListening(handleVoiceConversation);
+          }
+        }, 1000);
+      } else {
+        isProcessingVoiceRef.current = false;
       }
       
     } catch (error) {
@@ -129,10 +151,11 @@ function App() {
       };
       setMessages(prev => [...prev, botMessage]);
 
-      // Continue voice mode even on error
+      // Reset processing flag and continue voice mode even on error
+      isProcessingVoiceRef.current = false;
       if (voiceModeRef.current) {
         setTimeout(() => {
-          if (voiceModeRef.current) {
+          if (voiceModeRef.current && !isProcessingVoiceRef.current) {
             restartListening(handleVoiceConversation);
           }
         }, 2000);
@@ -174,6 +197,7 @@ function App() {
     setMessages([]);
     setIsVoiceMode(false);
     voiceModeRef.current = false;
+    isProcessingVoiceRef.current = false;
     stopSpeaking();
     stopListening();
     resetTranscript();
@@ -257,6 +281,7 @@ function App() {
       console.log('⏹️ Stopping voice mode');
       setIsVoiceMode(false);
       voiceModeRef.current = false;
+      isProcessingVoiceRef.current = false;
       stopListening();
       stopSpeaking();
     } else {
@@ -264,6 +289,7 @@ function App() {
       console.log('▶️ Starting voice mode');
       setIsVoiceMode(true);
       voiceModeRef.current = true;
+      isProcessingVoiceRef.current = false;
       resetTranscript();
       startListening(handleVoiceConversation);
     }
@@ -291,7 +317,7 @@ function App() {
 
   // Determine current voice mode state - priority order: loading > speaking > listening > idle
   const getCurrentVoiceState = () => {
-    if (isLoading) return 'loading';
+    if (isLoading || isProcessingVoiceRef.current) return 'loading';
     if (isSpeaking) return 'speaking';
     if (isListening) return 'listening';
     return 'idle';
@@ -416,6 +442,9 @@ function App() {
               <p className="text-gray-600 text-sm sm:text-base leading-relaxed">
                 Konuşun, yanıt alın ve otomatik olarak tekrar dinlemeye başlar. 
                 Çıkmak için sağ üstteki ❌ butonuna basın.
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Mobil cihazlarda daha iyi performans için kısa ve net konuşun
               </p>
             </div>
           </div>
